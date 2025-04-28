@@ -19,6 +19,8 @@ import {
   Download,
   Share2,
 } from "lucide-react"
+import Link from "next/link"
+import { ArrowRight } from "lucide-react"
 import { getPrescriptionResults, updateBlockchainRecord } from "@/lib/actions"
 import type { PrescriptionResult } from "@/lib/types"
 
@@ -115,7 +117,30 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="container py-10">
+        <div>
+                      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 container mx-auto max-w-8xl px-4 md:px-6">
+            <div className="container flex h-16 items-center">
+              <div className="mr-4 flex">
+                <Link href="/" className="flex items-center space-x-2">
+                  <span className="font-bold text-xl">MedVerify</span>
+                </Link>
+              </div>
+              <nav className="flex flex-1 items-center justify-end space-x-4">
+                <Link href="/about">
+                  <Button variant="ghost">About</Button>
+                </Link>
+                <Link href="/dashboard">
+                  <Button variant="ghost">Dashboard</Button>
+                </Link>
+                <Link href="/register">
+                  <Button>
+                    Get Started <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+              </nav>
+            </div>
+          </header>
+    <div className="container py-10 container mx-auto max-w-7xl px-4 md:px-6">
       <div className="grid gap-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Prescription Analysis Results</h1>
@@ -351,6 +376,7 @@ export default function DashboardPage() {
           </CardFooter>
         </Card>
       </div>
+    </div>
     </div>
   )
 }

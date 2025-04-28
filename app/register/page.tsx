@@ -13,7 +13,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Loader2 } from "lucide-react"
 import { analyzePrescription } from "@/lib/actions"
-import { ImagePlus, X } from "lucide-react"
+import { ImagePlus, X, ArrowRight } from "lucide-react"
+import Link from "next/link"
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -94,6 +95,29 @@ export default function RegisterPage() {
   }
 
   return (
+    <div>
+                  <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 container mx-auto max-w-8xl px-4 md:px-6">
+        <div className="container flex h-16 items-center">
+          <div className="mr-4 flex">
+            <Link href="/" className="flex items-center space-x-2">
+              <span className="font-bold text-xl">MedVerify</span>
+            </Link>
+          </div>
+          <nav className="flex flex-1 items-center justify-end space-x-4">
+            <Link href="/about">
+              <Button variant="ghost">About</Button>
+            </Link>
+            <Link href="/dashboard">
+              <Button variant="ghost">Dashboard</Button>
+            </Link>
+            <Link href="/register">
+              <Button>
+                Get Started <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </nav>
+        </div>
+      </header>
     <div className="container max-w-4xl py-10 container mx-auto max-w-6xl px-4 md:px-6">
       <Card>
         <CardHeader>
@@ -318,6 +342,7 @@ export default function RegisterPage() {
           <p className="text-sm text-gray-500">Your data is securely processed and stored</p>
         </CardFooter>
       </Card>
+    </div>
     </div>
   )
 }
