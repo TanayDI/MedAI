@@ -42,7 +42,11 @@ export const searchVectorDatabase = tool({
       atorvastatin: {
         name: "Atorvastatin",
         dosage: "10-80mg daily",
-        interactions: ["Grapefruit juice", "Certain antibiotics", "Cyclosporine"],
+        interactions: [
+          "Grapefruit juice",
+          "Certain antibiotics",
+          "Cyclosporine",
+        ],
         sideEffects: ["Muscle pain", "Liver problems", "Increased blood sugar"],
         contraindications: ["Liver disease", "Pregnancy", "Breastfeeding"],
       },
@@ -103,7 +107,7 @@ export const searchOnline = tool({
 export async function analyzePrescriptionWithRAG(
   prescription: string,
   patientInfo: any,
-  prescriptionImage?: string // Base64 string of the image
+  prescriptionImage?: string, // Base64 string of the image
 ) {
   try {
     // Use vision model when image is provided
@@ -112,9 +116,14 @@ export async function analyzePrescriptionWithRAG(
     });
 
     // Gather medicine information using existing tools
-    const medications = prescription.split(/[,\n]/).map(med => med.trim());
+    const medications = prescription.split(/[,\n]/).map((med) => med.trim());
     const medicineData = await Promise.all(
-      medications.map(med => searchVectorDatabase.execute({ medicineName: med }, { toolCallId: "unique-id", messages: [] }))
+      medications.map((med) =>
+        searchVectorDatabase.execute(
+          { medicineName: med },
+          { toolCallId: "unique-id", messages: [] },
+        ),
+      ),
     );
 
     // Prepare parts array for the model
@@ -130,8 +139,8 @@ export async function analyzePrescriptionWithRAG(
         - Current Medications: ${patientInfo.medications}
         - Symptoms: ${patientInfo.symptoms}
 
-        ${prescription ? `Prescription to analyze:\n${prescription}\n` : ''}
-        ${prescriptionImage ? "Also analyze the provided prescription image." : ''}
+        ${prescription ? `Prescription to analyze:\n${prescription}\n` : ""}
+        ${prescriptionImage ? "Also analyze the provided prescription image." : ""}
 
         Medicine Database Information:
         ${JSON.stringify(medicineData, null, 2)}
@@ -146,36 +155,44 @@ export async function analyzePrescriptionWithRAG(
         }
 
         Important: Return only the JSON object, with no additional text, markdown, or formatting.
-      `
+      `,
     });
 
     // Add image part if provided
     if (prescriptionImage) {
-      const mimeTypeMatch = prescriptionImage.match(/^data:image\/(png|jpg|jpeg|webp);base64,/);
-      const mimeType = mimeTypeMatch ? `image/${mimeTypeMatch[1]}` : 'image/jpeg';
-      
+      const mimeTypeMatch = prescriptionImage.match(
+        /^data:image\/(png|jpg|jpeg|webp);base64,/,
+      );
+      const mimeType = mimeTypeMatch
+        ? `image/${mimeTypeMatch[1]}`
+        : "image/jpeg";
+
       parts.push({
         inline_data: {
-          data: prescriptionImage.replace(/^data:image\/(png|jpg|jpeg|webp);base64,/, ''),
-          mime_type: mimeType
-        }
+          data: prescriptionImage.replace(
+            /^data:image\/(png|jpg|jpeg|webp);base64,/,
+            "",
+          ),
+          mime_type: mimeType,
+        },
       } as unknown as Part);
     }
 
     // Generate content with parts
     const result = await model.generateContent({
-      contents: [{
-        role: 'user',
-        parts
-      }]
+      contents: [
+        {
+          role: "user",
+          parts,
+        },
+      ],
     });
 
     const response = await result.response;
     let analysisText = response.text();
-    
 
     // Clean up formatting
-    analysisText = analysisText.replace(/```json|```/g, '').trim();
+    analysisText = analysisText.replace(/```json|```/g, "").trim();
     console.log("AI Response:", analysisText);
 
     try {
@@ -188,13 +205,13 @@ export async function analyzePrescriptionWithRAG(
             title: z.string(),
             description: z.string(),
             severity: z.enum(["low", "medium", "high"]),
-          })
+          }),
         ),
         suggestions: z.array(
           z.object({
             title: z.string(),
             description: z.string(),
-          })
+          }),
         ),
         dataSources: z.object({
           vectorDbEntries: z.number(),
