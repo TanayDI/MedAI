@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -12,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Loader2 } from "lucide-react"
 import { analyzePrescription } from "@/lib/actions"
+import { ImagePlus, X } from "lucide-react"
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -23,19 +25,28 @@ const formSchema = z.object({
   gender: z.string().min(1, {
     message: "Please select a gender.",
   }),
-  symptoms: z.string().min(10, {
-    message: "Please describe your symptoms in at least 10 characters.",
-  }),
-  medications: z.string().min(3, {
-    message: "Please enter your current medications.",
-  }),
-  prescription: z.string().min(10, {
-    message: "Please enter the prescription details to check.",
-  }),
-})
+  symptoms: z.string(),
+  medications: z.string(),
+  prescription: z.string(),
+  prescriptionImage: z.any(),
+}).refine((data) => {
+  // If there's no image, require the other fields
+  if (!data.prescriptionImage) {
+    return (
+      data.symptoms.length >= 10 &&
+      data.medications.length >= 3 &&
+      data.prescription.length >= 10
+    );
+  }
+  return true;
+}, {
+  message: "Please provide either a prescription image or fill in all the prescription details",
+  path: ["prescription"], // This will show the error under the prescription field
+});
 
 export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
   const router = useRouter()
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -47,17 +58,31 @@ export default function RegisterPage() {
       symptoms: "",
       medications: "",
       prescription: "",
+      prescriptionImage: null,
     },
+    mode: "onChange", // This will show validation errors as the user types
   })
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true)
     try {
+      const formData = { ...values }
+      
+      // Convert image to base64 if it exists
+      if (values.prescriptionImage) {
+        const reader = new FileReader()
+        const base64Promise = new Promise((resolve) => {
+          reader.onloadend = () => resolve(reader.result)
+          reader.readAsDataURL(values.prescriptionImage)
+        })
+        formData.prescriptionImage = await base64Promise
+      }
+
       // Store form data in session storage for the results page
-      sessionStorage.setItem("formData", JSON.stringify(values))
+      sessionStorage.setItem("formData", JSON.stringify(formData))
 
       // Call the server action to analyze the prescription
-      await analyzePrescription(values)
+      await analyzePrescription(formData)
 
       // Redirect to the results page
       router.push("/dashboard")
@@ -151,11 +176,24 @@ export default function RegisterPage() {
                 name="symptoms"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Symptoms</FormLabel>
+                    <FormLabel>Symptoms {!form.getValues("prescriptionImage") && "(Required)"}</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Describe your symptoms in detail" className="min-h-[100px]" {...field} />
+                      <Textarea 
+                        placeholder={
+                          form.getValues("prescriptionImage") 
+                            ? "Optional when providing an image" 
+                            : "Describe your symptoms in detail"
+                        }
+                        className="min-h-[100px]" 
+                        {...field} 
+                      />
                     </FormControl>
-                    <FormDescription>Provide a detailed description of your symptoms</FormDescription>
+                    <FormDescription>
+                      {form.getValues("prescriptionImage") 
+                        ? "Optional when providing a prescription image" 
+                        : "Provide a detailed description of your symptoms"
+                      }
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -175,6 +213,89 @@ export default function RegisterPage() {
                       />
                     </FormControl>
                     <FormDescription>Include medication names, dosages, frequency, and duration</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="prescriptionImage"
+                render={({ field: { onChange, value, ...field } }) => (
+                  <FormItem>
+                    <FormLabel>Prescription Image (Optional)</FormLabel>
+                    <FormControl>
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-4">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => document.getElementById('image-upload')?.click()}
+                          >
+                            <ImagePlus className="mr-2 h-4 w-4" />
+                            Upload Image
+                          </Button>
+                          <input
+                            id="image-upload"
+                            type="file"
+                            className="hidden"
+                            accept="image/jpeg,image/png,image/jpg,image/webp"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                // Validate file size (e.g., max 5MB)
+                                if (file.size > 5 * 1024 * 1024) {
+                                  form.setError("prescriptionImage", {
+                                    message: "Image size should be less than 5MB"
+                                  });
+                                  return;
+                                }
+                                
+                                // Validate file type
+                                if (!file.type.match(/^image\/(jpeg|png|jpg|webp)$/)) {
+                                  form.setError("prescriptionImage", {
+                                    message: "Please upload a valid image (JPEG, PNG, or WebP)"
+                                  });
+                                  return;
+                                }
+
+                                onChange(file);
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  setImagePreview(reader.result as string);
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                            {...field}
+                          />
+                        </div>
+                        {imagePreview && (
+                          <div className="relative w-full aspect-video">
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-2 right-2 z-10"
+                              onClick={() => {
+                                setImagePreview(null)
+                                onChange(null)
+                              }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                            <Image
+                              src={imagePreview}
+                              alt="Prescription preview"
+                              fill
+                              className="object-contain rounded-md"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </FormControl>
+                    <FormDescription>Upload a clear image of your prescription</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

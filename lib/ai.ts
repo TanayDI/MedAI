@@ -1,6 +1,6 @@
 import { generateObject, tool } from "ai";
 import { openai } from "@ai-sdk/openai";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, Part } from "@google/generative-ai";
 import { z } from "zod";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
@@ -100,9 +100,16 @@ export const searchOnline = tool({
 });
 
 // Function to analyze a prescription using Gemini AI
-export async function analyzePrescriptionWithRAG(prescription: string, patientInfo: any) {
+export async function analyzePrescriptionWithRAG(
+  prescription: string,
+  patientInfo: any,
+  prescriptionImage?: string // Base64 string of the image
+) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+    // Use vision model when image is provided
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash-exp",
+    });
 
     // Gather medicine information using existing tools
     const medications = prescription.split(/[,\n]/).map(med => med.trim());
@@ -110,45 +117,70 @@ export async function analyzePrescriptionWithRAG(prescription: string, patientIn
       medications.map(med => searchVectorDatabase.execute({ medicineName: med }, { toolCallId: "unique-id", messages: [] }))
     );
 
-    const prompt = `
-      You are a medical AI assistant specialized in prescription analysis.
-      
-      Patient Information:
-      - Name: ${patientInfo.name}
-      - Age: ${patientInfo.age}
-      - Gender: ${patientInfo.gender}
-      - Current Medications: ${patientInfo.medications}
-      - Symptoms: ${patientInfo.symptoms}
-      
-      Prescription to analyze:
-      ${prescription}
-      
-      Medicine Database Information:
-      ${JSON.stringify(medicineData, null, 2)}
-      
-      Provide your analysis as a strict JSON object (no markdown formatting, no code blocks) with this structure:
-      {
-        "status": "valid" | "warning" | "invalid",
-        "issues": [{ "title": string, "description": string, "severity": "low" | "medium" | "high" }],
-        "suggestions": [{ "title": string, "description": string }],
-        "dataSources": { "vectorDbEntries": number, "searchQueries": number }
-      }
-      
-      Important: Return only the JSON object, with no additional text, markdown, or formatting.
-    `;
+    // Prepare parts array for the model
+    const parts: Part[] = [];
 
-    const result = await model.generateContent(prompt);
+    // Add text part first
+    parts.push({
+      text: `
+        Patient Information:
+        - Name: ${patientInfo.name}
+        - Age: ${patientInfo.age}
+        - Gender: ${patientInfo.gender}
+        - Current Medications: ${patientInfo.medications}
+        - Symptoms: ${patientInfo.symptoms}
+
+        ${prescription ? `Prescription to analyze:\n${prescription}\n` : ''}
+        ${prescriptionImage ? "Also analyze the provided prescription image." : ''}
+
+        Medicine Database Information:
+        ${JSON.stringify(medicineData, null, 2)}
+
+        Provide your analysis as a strict JSON object with this structure:
+        {
+          "status": "valid" | "warning" | "invalid",
+          "issues": [{ "title": string, "description": string, "severity": "low" | "medium" | "high" }],
+          "suggestions": [{ "title": string, "description": string }],
+          "dataSources": { "vectorDbEntries": number, "searchQueries": number },
+          "imageAnalysis": string | null
+        }
+
+        Important: Return only the JSON object, with no additional text, markdown, or formatting.
+      `
+    });
+
+    // Add image part if provided
+    if (prescriptionImage) {
+      const mimeTypeMatch = prescriptionImage.match(/^data:image\/(png|jpg|jpeg|webp);base64,/);
+      const mimeType = mimeTypeMatch ? `image/${mimeTypeMatch[1]}` : 'image/jpeg';
+      
+      parts.push({
+        inline_data: {
+          data: prescriptionImage.replace(/^data:image\/(png|jpg|jpeg|webp);base64,/, ''),
+          mime_type: mimeType
+        }
+      } as unknown as Part);
+    }
+
+    // Generate content with parts
+    const result = await model.generateContent({
+      contents: [{
+        role: 'user',
+        parts
+      }]
+    });
+
     const response = await result.response;
     let analysisText = response.text();
+    
 
-    // Clean up any markdown or code block formatting
-    analysisText = analysisText.replace(/```json\n?/g, '')
-                              .replace(/```\n?/g, '')
-                              .trim();
+    // Clean up formatting
+    analysisText = analysisText.replace(/```json|```/g, '').trim();
+    console.log("AI Response:", analysisText);
 
     try {
       const analysis = JSON.parse(analysisText);
-      // Define the schema for the analysis response
+      // Update schema to include imageAnalysis
       const analysisSchema = z.object({
         status: z.enum(["valid", "warning", "invalid"]),
         issues: z.array(
@@ -168,6 +200,7 @@ export async function analyzePrescriptionWithRAG(prescription: string, patientIn
           vectorDbEntries: z.number(),
           searchQueries: z.number(),
         }),
+        imageAnalysis: z.string().nullable(),
       });
 
       return analysisSchema.parse(analysis);
