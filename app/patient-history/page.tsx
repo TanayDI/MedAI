@@ -7,20 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import {
-  CheckCircle,
-  AlertTriangle,
-  XCircle,
-  FileText,
-  User,
-  Pill,
-  Database,
-  RefreshCw,
-  Download,
-  Share2,
-} from "lucide-react"
+import { CheckCircle, AlertTriangle, XCircle, FileText, User, Pill, Database, RefreshCw, Download, Share2, Search, History } from 'lucide-react'
 import Link from "next/link"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight } from 'lucide-react'
 import { getPrescriptionResults, updateBlockchainRecord } from "@/lib/actions"
 import type { PrescriptionResult } from "@/lib/types"
 
@@ -129,12 +118,6 @@ export default function DashboardPage() {
             <Link href="/about">
               <Button variant="ghost">About</Button>
             </Link>
-            <Link href="/hash-search">
-              <Button variant="ghost">Hash Search</Button>
-            </Link>
-            <Link href="/patient-history">
-              <Button variant="ghost">Patient History</Button>
-            </Link>
             <Link href="/dashboard">
               <Button variant="ghost">Dashboard</Button>
             </Link>
@@ -239,30 +222,6 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-4">
-                  <Link href="/hash-search">
-                    <Button variant="outline">
-                      <Database className="mr-2 h-4 w-4" />
-                      Hash Search
-                    </Button>
-                  </Link>
-                  <Link href="/patient-history">
-                    <Button variant="outline">
-                      <FileText className="mr-2 h-4 w-4" />
-                      Patient History
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
           <Tabs defaultValue="analysis">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="analysis">Analysis</TabsTrigger>
@@ -338,8 +297,8 @@ export default function DashboardPage() {
                       </h3>
                       <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                         Our system accessed a comprehensive vector database containing information on{" "}
-                        {results.dataSources?.vectorDbEntries || "N/A"} medications, including dosages, interactions,
-                        and contraindications.
+                        {results.dataSources?.vectorDbEntries || "N/A"} medications, including dosages, interactions, and
+                        contraindications.
                       </p>
                     </div>
                     <div className="p-4 border rounded-lg">

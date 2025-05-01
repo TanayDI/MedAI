@@ -1,9 +1,8 @@
-import { generateObject, tool } from "ai";
-import { openai } from "@ai-sdk/openai";
-import { GoogleGenerativeAI, Part } from "@google/generative-ai";
-import { z } from "zod";
+import { tool } from "ai"
+import { GoogleGenerativeAI, type Part } from "@google/generative-ai"
+import { z } from "zod"
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
 
 // Define the schema for medicine information
 const medicineSchema = z.object({
@@ -12,7 +11,7 @@ const medicineSchema = z.object({
   interactions: z.array(z.string()),
   sideEffects: z.array(z.string()),
   contraindications: z.array(z.string()),
-});
+})
 
 // Vector database search tool
 export const searchVectorDatabase = tool({
@@ -21,7 +20,7 @@ export const searchVectorDatabase = tool({
     medicineName: z.string().describe("The name of the medicine to search for"),
   }),
   execute: async ({ medicineName }) => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500))
 
     // Mock data for common medications
     const medicines: Record<string, any> = {
@@ -42,30 +41,26 @@ export const searchVectorDatabase = tool({
       atorvastatin: {
         name: "Atorvastatin",
         dosage: "10-80mg daily",
-        interactions: [
-          "Grapefruit juice",
-          "Certain antibiotics",
-          "Cyclosporine",
-        ],
+        interactions: ["Grapefruit juice", "Certain antibiotics", "Cyclosporine"],
         sideEffects: ["Muscle pain", "Liver problems", "Increased blood sugar"],
         contraindications: ["Liver disease", "Pregnancy", "Breastfeeding"],
       },
-    };
+    }
 
     // Normalize the medicine name for lookup
-    const normalizedName = medicineName.toLowerCase().trim();
+    const normalizedName = medicineName.toLowerCase().trim()
 
     // Find the medicine in our mock database
     for (const key in medicines) {
       if (key.includes(normalizedName) || normalizedName.includes(key)) {
-        return medicines[key];
+        return medicines[key]
       }
     }
 
     // Return null if not found
-    return null;
+    return null
   },
-});
+})
 
 // Online search tool
 export const searchOnline = tool({
@@ -78,7 +73,7 @@ export const searchOnline = tool({
     // In a real application, this would perform an actual web search
 
     // Simulate search delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000))
 
     // Return mock search results
     return {
@@ -99,9 +94,9 @@ export const searchOnline = tool({
           url: `https://example.com/dosage/${query.toLowerCase().replace(/\s+/g, "-")}`,
         },
       ],
-    };
+    }
   },
-});
+})
 
 // Function to analyze a prescription using Gemini AI
 export async function analyzePrescriptionWithRAG(
@@ -113,21 +108,18 @@ export async function analyzePrescriptionWithRAG(
     // Use vision model when image is provided
     const model = genAI.getGenerativeModel({
       model: "gemini-2.0-flash-exp",
-    });
+    })
 
     // Gather medicine information using existing tools
-    const medications = prescription.split(/[,\n]/).map((med) => med.trim());
+    const medications = prescription.split(/[,\n]/).map((med) => med.trim())
     const medicineData = await Promise.all(
       medications.map((med) =>
-        searchVectorDatabase.execute(
-          { medicineName: med },
-          { toolCallId: "unique-id", messages: [] },
-        ),
+        searchVectorDatabase.execute({ medicineName: med }, { toolCallId: "unique-id", messages: [] }),
       ),
-    );
+    )
 
     // Prepare parts array for the model
-    const parts: Part[] = [];
+    const parts: Part[] = []
 
     // Add text part first
     parts.push({
@@ -145,37 +137,46 @@ export async function analyzePrescriptionWithRAG(
         Medicine Database Information:
         ${JSON.stringify(medicineData, null, 2)}
 
+        ${
+          patientInfo.patientHistory
+            ? `
+        Previous Prescription History (from Neo4j database):
+        ${JSON.stringify(patientInfo.patientHistory, null, 2)}
+        
+        When analyzing this prescription, please consider:
+        1. Previous medications the patient has taken
+        2. Previous issues or warnings identified
+        3. Any patterns in the prescription history that could affect the current prescription
+        `
+            : "No previous prescription history available."
+        }
+
         Provide your analysis as a strict JSON object with this structure:
         {
           "status": "valid" | "warning" | "invalid",
           "issues": [{ "title": string, "description": string, "severity": "low" | "medium" | "high" }],
           "suggestions": [{ "title": string, "description": string }],
           "dataSources": { "vectorDbEntries": number, "searchQueries": number },
-          "imageAnalysis": string | null
+          "imageAnalysis": string | null,
+          "historyReference": string | null
         }
 
         Important: Return only the JSON object, with no additional text, markdown, or formatting.
+        In the historyReference field, include a brief analysis of how the current prescription relates to the patient's history.
       `,
-    });
+    })
 
     // Add image part if provided
     if (prescriptionImage) {
-      const mimeTypeMatch = prescriptionImage.match(
-        /^data:image\/(png|jpg|jpeg|webp);base64,/,
-      );
-      const mimeType = mimeTypeMatch
-        ? `image/${mimeTypeMatch[1]}`
-        : "image/jpeg";
+      const mimeTypeMatch = prescriptionImage.match(/^data:image\/(png|jpg|jpeg|webp);base64,/)
+      const mimeType = mimeTypeMatch ? `image/${mimeTypeMatch[1]}` : "image/jpeg"
 
       parts.push({
         inline_data: {
-          data: prescriptionImage.replace(
-            /^data:image\/(png|jpg|jpeg|webp);base64,/,
-            "",
-          ),
+          data: prescriptionImage.replace(/^data:image\/(png|jpg|jpeg|webp);base64,/, ""),
           mime_type: mimeType,
         },
-      } as unknown as Part);
+      } as unknown as Part)
     }
 
     // Generate content with parts
@@ -186,18 +187,18 @@ export async function analyzePrescriptionWithRAG(
           parts,
         },
       ],
-    });
+    })
 
-    const response = await result.response;
-    let analysisText = response.text();
+    const response = await result.response
+    let analysisText = response.text()
 
     // Clean up formatting
-    analysisText = analysisText.replace(/```json|```/g, "").trim();
-    console.log("AI Response:", analysisText);
+    analysisText = analysisText.replace(/```json|```/g, "").trim()
+    console.log("AI Response:", analysisText)
 
     try {
-      const analysis = JSON.parse(analysisText);
-      // Update schema to include imageAnalysis
+      const analysis = JSON.parse(analysisText)
+      // Update schema to include imageAnalysis and historyReference
       const analysisSchema = z.object({
         status: z.enum(["valid", "warning", "invalid"]),
         issues: z.array(
@@ -218,15 +219,16 @@ export async function analyzePrescriptionWithRAG(
           searchQueries: z.number(),
         }),
         imageAnalysis: z.string().nullable(),
-      });
+        historyReference: z.string().nullable(),
+      })
 
-      return analysisSchema.parse(analysis);
+      return analysisSchema.parse(analysis)
     } catch (jsonError) {
-      console.error("Failed to parse AI response:", analysisText);
-      throw new Error("Invalid AI response format");
+      console.error("Failed to parse AI response:", analysisText)
+      throw new Error("Invalid AI response format")
     }
   } catch (error) {
-    console.error("Error analyzing prescription:", error);
-    throw error;
+    console.error("Error analyzing prescription:", error)
+    throw error
   }
 }
